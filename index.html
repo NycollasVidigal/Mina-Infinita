@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+
+<html lang="pt-br">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <link rel="manifest" href="manifest.json">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>MINA INFINITA</title>
+
+    <style>
+
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; touch-action: none; }
+
+        canvas { display: block; image-rendering: pixelated; }
+
+        #ui { position: absolute; top: 15px; left: 15px; color: gold; font-size: 18px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 4px #000; z-index: 10; }
+
+        #energy-container { width: 150px; height: 15px; background: #333; border: 2px solid #fff; margin-top: 5px; border-radius: 10px; overflow: hidden; }
+
+        #energy-bar { width: 100%; height: 100%; background: #ff7675; transition: width 0.3s; }
+
+        #pet-power-ui { position: absolute; top: 15px; right: 20px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 10px; color: #55efc4; font-weight: bold; border: 1px solid #55efc4; display: none; z-index: 20; }
+
+        #btn-hub { position: absolute; bottom: 20px; right: 20px; padding: 15px 35px; font-weight: bold; font-size: 16px; cursor: pointer; border: 2px solid #fff; border-radius: 50px; background: #e67e22; color: white; z-index: 100; }
+
+        #shop-ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: rgba(0,0,0,0.96); padding: 25px; border: 3px solid #2ecc71; color: white; text-align: center; z-index: 5000; min-width: 280px; border-radius: 15px; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+
+        #shop-ui.active { opacity: 1; visibility: visible; transform: translate(-50%, -50%) scale(1); }
+
+        .shop-item { margin: 12px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; background: rgba(255,255,255,0.05); }
+
+        button { cursor: pointer; padding: 10px 20px; background: #27ae60; color: white; border: none; font-weight: bold; border-radius: 5px; }
+
+        #overlay { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9000; color: white; text-align: center; }
+
+        #level-start-ui { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 25px; border-radius: 15px; border: 2px solid gold; color: white; text-align: center; z-index: 1000; display: none; pointer-events: none; min-width: 280px; box-shadow: 0 0 30px rgba(255,215,0,0.5); }
+
+        #energy-warning {
+
+        position: absolute;
+
+        top: 50%;
+
+        left: 50%;
+
+        transform: translate(-50%, -50%);
+
+        color: #ff7675;
+
+        font-size: 26px;
+
+        font-weight: bold;
+
+        text-shadow: 3px 3px 6px #000;
+
+        display: none; /* Começa escondido */
+
+        z-index: 9999;
+
+        pointer-events: none;
+
+        text-align: center;
+
+        width: 100%;
+
+    }
+
+    </style>
+
+</head>
+
+<body>
+
+
+
+    <div id="overlay" onclick="startGame()">
+
+        <h1 style="color: yellow;">MINA INFINITA</h1>
+
+        <p>CLIQUE PARA INICIAR</p>
+
+    </div>
+
+    <div id="energy-warning">⚠️ VOCÊ ESTÁ EXAUSTO!<br>VÁ TOMAR UM CAFÉ NA VILA.</div>
+
+
+
+    <div id="ui">
+
+        PONTOS: <span id="score-text">0</span> | MC: <span id="coins-text">0</span><br>
+
+        NÍVEL: <span id="level-text">1</span>
+
+        <div id="energy-container"><div id="energy-bar"></div></div>
+
+    </div>
+
+
+
+    <div id="pet-power-ui">⚡ BOOSTER: <span id="pet-timer-text">0s</span></div>
+
+   
+
+    <div id="level-start-ui">
+
+        <h2 id="level-title" style="margin: 0 0 5px 0; color: gold;">NÍVEL 1</h2>
+
+        <h4 id="booster-label" style="margin: 0 0 15px 0; text-transform: uppercase;">-</h4>
+
+        <div id="active-pets-list" style="display: flex; gap: 20px; justify-content: center; align-items: center;"></div>
+
+    </div>
+
+
+
+    <button id="btn-hub" onclick="toggleHub()">VILA</button>
+
+
+
+     <div id="shop-ui">
+        <h2 style="color: #2ecc71; margin-top:0;">LOJA DA VILA</h2>
+        <div class="shop-item">☕ Café Expresso<br><small>Restaura 100% Energia</small><br><button onclick="buyCoffee()" style="background: #6f4e37;">50 MC</button></div>
+        <div class="shop-item">🐶 Doguinho (Força)<br><small id="dog-lvl-display">Lvl: 0</small><br><button onclick="buyPet('dog')">100 MC</button></div>
+        <div class="shop-item">🐱 Gatinho (Sorte)<br><small id="cat-lvl-display">Lvl: 0</small><br><button onclick="buyPet('cat')">100 MC</button></div>
+        <div class="shop-item">💰 Converter<br><button onclick="convertPoints()" style="background: gold; color: black;">200 Pts ➔ 50 MC</button></div>
+        <button onclick="closeShop()" style="background:#c0392b; width: 100%; margin-top: 10px; border: 2px solid white;">FECHAR</button>
+    </div>
+
+
+
+    <canvas id="gameCanvas"></canvas>
+
+
+
+    <script>
+
+        const sounds = {
+            bgm: new Audio('image/musica_fundo.mp3'),
+            hook: new Audio('image/som_gancho.mp3'),
+            catch: new Audio('image/som_coleta.mp3'),
+            coin: new Audio('image/som_moeda.mp3')
+        };
+        sounds.bgm.loop = true;
+        sounds.bgm.volume = 0.3;
+
+
+         function playAudio(audioObj) {
+            audioObj.currentTime = 0;
+            audioObj.play().catch(e => console.log("Áudio aguardando interação"));
+          
+        }
+
+
+        function stopAudio(audioObj) {
+
+            audioObj.pause();
+
+            audioObj.currentTime = 0;
+
+        }
+
+            const sprites = {};
+                    const assetNames = ['miner', 'ferro', 'ouro', 'diamante', 'rocha', 'pedra_negra', 'dog', 'cat', 'loja'];
+                    const fileNames = ['minerador.png', 'ferro.png', 'ouro.png', 'diamante.png', 'rocha.png', 'pedra_negra.png', 'dog.png', 'cat.png', 'loja.png'];
+                    
+                    assetNames.forEach((name, i) => {
+                        sprites[name] = new Image();
+                        sprites[name].src = 'image/' + fileNames[i];
+                    });
+
+         const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let shakeAmount = 0; 
+        let mode = 'mine', score = 0, coins = 0, currentLevel = 1, energy = 100, gameActive = false, isShopOpen = false;
+        let petTimer = 0;
+        let pets = { dog: { owned: false, lvl: 0 }, cat: { owned: false, lvl: 0 } };
+        
+        let minerPos = { x: 0, y: 75 };
+        let playerHubPos = { x: 0, y: 0 }, targetHubPos = { x: 0, y: 0 };
+        let hook = { x: 0, y: 0, angle: 0, state: 'idle', caughtItem: null };
+        let items = [];
+       
+
+        canvas.width = window.innerWidth;
+
+        canvas.height = window.innerHeight;
+
+        minerPos.x = canvas.width/2;
+
+        playerHubPos = { x: canvas.width/2, y: canvas.height - 150 };
+
+        targetHubPos = { ...playerHubPos };
+
+       
+
+        function saveGame() {
+
+            const data = { score, coins, currentLevel, pets, energy };
+
+            localStorage.setItem('mina_infinita_save', JSON.stringify(data));
+
+        }
+
+
+
+        function loadGame() {
+
+            const saved = localStorage.getItem('mina_infinita_save');
+
+            if (saved) {
+
+                const data = JSON.parse(saved);
+
+                score = Number(data.score) || 0;
+
+                coins = Number(data.coins) || 0;
+
+                currentLevel = Number(data.currentLevel) || 1;
+
+                energy = Number(data.energy) || 100;
+
+                if(data.pets) pets = data.pets;
+
+                updateUI();
+
+            }
+
+        }
+
+
+
+        function startGame() {
+            loadGame();
+            document.getElementById('overlay').style.display = 'none';
+            gameActive = true;
+            playAudio(sounds.bgm);
+            nextLevel(true);
+            draw();
+        }
+
+
+
+        function showLevelPopUp() {
+
+            const popup = document.getElementById('level-start-ui');
+
+            const label = document.getElementById('booster-label');
+
+            const hasPet = pets.dog.owned || pets.cat.owned;
+
+           
+
+            document.getElementById('level-title').innerText = "NÍVEL " + currentLevel;
+
+            petTimer = 0;
+
+
+
+            if (currentLevel % 5 === 0) {
+
+                petTimer = 60;
+
+                label.innerText = "🚀 SUPER BOOSTER (60s) 🚀";
+
+                label.style.color = "gold";
+
+            } else if (hasPet) {
+
+                petTimer = 20;
+
+                label.innerText = "🐾 BOOSTER PET (20s) 🐾";
+
+                label.style.color = "#55efc4";
+
+            } else {
+
+                label.innerText = "SEM BOOSTER (COMPRE UM PET)";
+
+                label.style.color = "#ff7675";
+
+            }
+
+
+
+            const petsList = document.getElementById('active-pets-list');
+
+            petsList.innerHTML = "";
+
+            if (pets.dog.owned) petsList.innerHTML += `<img src="${sprites.dog.src}" width="40">`;
+
+            if (pets.cat.owned) petsList.innerHTML += `<img src="${sprites.cat.src}" width="40">`;
+
+
+
+            popup.style.display = 'block';
+
+            setTimeout(() => { popup.style.display = 'none'; }, 3000);
+
+        }
+
+
+
+        function nextLevel(first = false) {
+
+            if(!first) { currentLevel++; saveGame(); }
+
+            showLevelPopUp();
+
+            document.getElementById('level-title').innerText = getCurrentBiome().name + " - NÍVEL " + currentLevel;
+
+            createItems();
+
+            updateUI();
+
+        }
+
+
+
+        function createItems() {
+
+            items = [];
+
+            const types = ['ferro', 'ouro', 'diamante', 'rocha'];
+
+            if (currentLevel >= 3) types.push('pedra_negra');
+
+            for (let i = 0; i < 8 + currentLevel; i++) {
+
+                const type = types[Math.floor(Math.random() * types.length)];
+
+                let weight = 2, value = 50;
+
+                if (type === 'rocha') { weight = 5; value = 5; }
+
+                else if (type === 'pedra_negra') { weight = 8; value = 150; }
+
+                else if (type === 'diamante') { weight = 1.5; value = 100; }
+
+                items.push({ x: Math.random() * (canvas.width - 60) + 30, y: 300 + Math.random() * (canvas.height - 400), spriteKey: type, weight, value });
+
+            }
+
+        }
+
+
+
+        function updateUI() {
+
+            document.getElementById('score-text').innerText = Math.floor(score);
+
+            document.getElementById('coins-text').innerText = coins;
+
+            document.getElementById('level-text').innerText = currentLevel;
+
+            document.getElementById('energy-bar').style.width = energy + "%";
+
+            document.getElementById('pet-power-ui').style.display = (petTimer > 0) ? 'block' : 'none';
+
+            document.getElementById('pet-timer-text').innerText = petTimer + "s";
+
+            document.getElementById('dog-lvl-display').innerText = "Lvl: " + pets.dog.lvl;
+
+            document.getElementById('cat-lvl-display').innerText = "Lvl: " + pets.cat.lvl;
+
+        }
+
+
+
+        // Booster congela se não estiver na mina
+
+        setInterval(() => {
+
+            if (gameActive && petTimer > 0 && mode === 'mine') {
+
+                petTimer--;
+
+                updateUI();
+
+            }
+
+        }, 1000);
+
+
+
+        function update() {
+
+            if (!gameActive) return;
+
+            if (shakeAmount > 0) shakeAmount *= 0.85; else shakeAmount = 0;
+
+
+
+            if (mode === 'mine') {
+
+                if (hook.state === 'idle') { hook.x = minerPos.x; hook.y = minerPos.y; }
+
+               
+
+                if (hook.state === 'extending') {
+
+                    hook.x += Math.sin(hook.angle) * 12; hook.y += Math.cos(hook.angle) * 12;
+
+                    if (hook.y > canvas.height || hook.x < 0 || hook.x > canvas.width) {
+
+                        hook.state = 'retracting';
+
+                    } else {
+
+                        for (let i = items.length - 1; i >= 0; i--) {
+
+                            let it = items[i];
+
+                            if (Math.hypot(hook.x - it.x, hook.y - it.y) < 30) {
+
+                                hook.caughtItem = items.splice(i, 1)[0];
+
+                                hook.state = 'retracting';
+
+                                stopAudio(sounds.hook);
+
+                                playAudio(sounds.catch);
+
+                                if (hook.caughtItem.weight >= 5) shakeAmount = hook.caughtItem.weight * 4;
+
+                                break;
+
+                            }
+
+                        }
+
+                    }
+
+                } else if (hook.state === 'retracting') {
+
+                    let dogBoost = (pets.dog.owned && petTimer > 0) ? (1 + (pets.dog.lvl * 0.5)) : (petTimer > 0 ? 1.2 : 1);
+
+                    let s = 12 / (1 + (hook.caughtItem ? (hook.caughtItem.weight / dogBoost) : 0));
+
+                    let d = Math.hypot(minerPos.x - hook.x, minerPos.y - hook.y);
+
+                   
+
+                    if (d < 15) {
+
+                        if (hook.caughtItem) {
+
+                            let catBoost = (pets.cat.owned && petTimer > 0) ? 2.5 : (petTimer > 0 ? 1.5 : 1);
+
+                            score += hook.caughtItem.value * catBoost;
+
+                            hook.caughtItem = null;
+
+                            updateUI();
+
+                            stopAudio(sounds.catch);
+
+                            stopAudio(sounds.hook);
+
+                            if (items.length === 0) {
+
+                                playAudio(sounds.coin);
+
+                                nextLevel();
+
+                            }
+
+                        }
+
+                        hook.state = 'idle';
+
+                        hook.x = minerPos.x;
+
+                        hook.y = minerPos.y;
+
+                    } else {
+
+                        hook.x += ((minerPos.x - hook.x) / d) * s;
+
+                        hook.y += ((minerPos.y - hook.y) / d) * s;
+
+                    }
+
+                }
+
+            } else {
+
+                let dx = targetHubPos.x - playerHubPos.x, dy = targetHubPos.y - playerHubPos.y, dist = Math.hypot(dx, dy);
+
+                if (dist > 5) { playerHubPos.x += (dx / dist) * 5; playerHubPos.y += (dy / dist) * 5; }
+
+                if (!isShopOpen && Math.hypot(playerHubPos.x - canvas.width/2, playerHubPos.y - canvas.height/2) < 50) openShop();
+
+            }
+
+        }
+
+
+
+            const biomes = [
+
+                { name: "Caverna de Terra", sky: "#2c3e50", ground: "#4e342e" },    // Nível 1-5
+
+                { name: "Mina de Gelo", sky: "#dff9fb", ground: "#74b9ff" },       // Nível 6-10
+
+                { name: "Núcleo Vulcânico", sky: "#2d3436", ground: "#d63031" },   // Nível 11-15
+
+                { name: "Pântano Tóxico", sky: "#1e272e", ground: "#05c46b" },     // Nível 16-20
+
+                { name: "Caverna de Cristal", sky: "#2f3542", ground: "#a29bfe" }  // Nível 21+
+
+            ];
+
+
+
+            function getCurrentBiome() {
+
+                // Calcula o índice (0 para níveis 1-5, 1 para 6-10, etc.)
+
+                let index = Math.floor((currentLevel - 1) / 5);
+
+                // Se o nível for muito alto, mantém o último bioma
+
+                if (index >= biomes.length) index = biomes.length - 1;
+
+                return biomes[index];
+
+            }
+
+
+
+        function draw() {
+
+            const biome = getCurrentBiome(); // Pega o bioma atual
+
+
+
+            ctx.save();
+
+            if (shakeAmount > 0) ctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
+
+            ctx.clearRect(-100, -100, canvas.width + 200, canvas.height + 200);
+
+
+
+            if (mode === 'mine') {
+
+                // Desenha o Céu/Topo com a cor do Bioma
+
+                ctx.fillStyle = biome.sky;
+
+                ctx.fillRect(-100, -100, canvas.width + 200, 260);
+
+
+
+                // Desenha o Chão com a cor do Bioma
+
+                ctx.fillStyle = biome.ground;
+
+                ctx.fillRect(-100, 160, canvas.width + 200, canvas.height + 200);
+
+
+
+                // Desenha os itens
+
+                items.forEach(it => ctx.drawImage(sprites[it.spriteKey], it.x - 20, it.y - 20, 40, 40));
+
+               
+
+                // Gancho e Corda
+
+                ctx.strokeStyle = "white";
+
+                ctx.lineWidth = 3;
+
+                ctx.beginPath();
+
+                ctx.moveTo(minerPos.x, minerPos.y);
+
+                ctx.lineTo(hook.x, hook.y);
+
+                ctx.stroke();
+
+
+
+                if (hook.caughtItem) ctx.drawImage(sprites[hook.caughtItem.spriteKey], hook.x - 20, hook.y - 20, 40, 40);
+
+
+
+                // Efeito de cansaço no minerador
+
+                if (energy <= 0) ctx.filter = "grayscale(100%) opacity(0.7)";
+
+                ctx.drawImage(sprites.miner, minerPos.x-40, 15, 80, 80);
+
+                ctx.filter = "none";
+
+
+
+            } else {
+
+                // Modo Vila (Cor fixa ou você pode mudar também!)
+
+                ctx.fillStyle = "#2ecc71";
+
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+
+                ctx.drawImage(sprites.loja, canvas.width/2 - 60, canvas.height/2 - 60, 120, 120);
+
+                ctx.drawImage(sprites.miner, playerHubPos.x-40, playerHubPos.y-40, 80, 80);
+
+                if (pets.dog.owned) ctx.drawImage(sprites.dog, playerHubPos.x - 70, playerHubPos.y, 40, 40);
+
+                if (pets.cat.owned) ctx.drawImage(sprites.cat, playerHubPos.x + 30, playerHubPos.y, 40, 40);
+
+            }
+
+            ctx.restore();
+
+            update();
+
+            requestAnimationFrame(draw);
+
+        }
+
+
+
+        function toggleHub() { mode = (mode === 'mine') ? 'hub' : 'mine'; document.getElementById('btn-hub').innerText = (mode === 'mine') ? 'VILA' : 'MINA'; saveGame(); }
+
+        function openShop() { isShopOpen = true; document.getElementById('shop-ui').classList.add('active'); }
+
+        function closeShop() { isShopOpen = false; document.getElementById('shop-ui').classList.remove('active'); targetHubPos.y += 60; }
+
+       
+
+        function buyPet(type) { if (coins >= 100) { coins -= 100; pets[type].owned = true; pets[type].lvl++; playAudio(sounds.coin); updateUI(); saveGame(); } }
+
+        function convertPoints() { if (score >= 200) { score -= 200; coins += 50; playAudio(sounds.coin); updateUI(); saveGame(); } }
+
+       
+
+        // Função do Café
+
+        function buyCoffee() {
+
+            if (coins >= 50) {
+
+                if (energy >= 100) return;
+
+                coins -= 50;
+
+                energy = 100;
+
+                playAudio(sounds.coin);
+
+                updateUI();
+
+                saveGame();
+
+            }
+
+        }
+
+
+
+        canvas.addEventListener('mousedown', (e) => {
+
+            if (isShopOpen) return;
+
+           
+
+            if (mode === 'mine' && hook.state === 'idle') {
+
+                // --- VERIFICAÇÃO DE ENERGIA COM AVISO ---
+
+                if (energy <= 0) {
+
+                    const warning = document.getElementById('energy-warning');
+
+                    warning.style.display = 'block'; // Mostra a mensagem
+
+                   
+
+                    // Toca um som de erro ou faz o shake se quiser
+
+                    shakeAmount = 5;
+
+
+
+                    setTimeout(() => {
+
+                        warning.style.display = 'none'; // Esconde depois de 2 segundos
+
+                    }, 2000);
+
+                    return;
+
+                }
+
+
+
+                energy -= 5; // Gasta energia
+
+                if (energy < 0) energy = 0;
+
+                updateUI();
+
+
+
+                hook.angle = Math.atan2(e.clientX - minerPos.x, e.clientY - minerPos.y);
+
+                hook.state = 'extending';
+
+                playAudio(sounds.hook);
+
+            } else if (mode === 'hub') {
+
+                targetHubPos.x = e.clientX;
+
+                targetHubPos.y = e.clientY;
+
+            }
+
+        });
+
+        draw();
+
+    </script>
+
+</body>
+
+</html>
