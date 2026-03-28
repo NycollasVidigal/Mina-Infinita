@@ -175,7 +175,7 @@
      <div id="shop-ui">
         <h2 style="color: #2ecc71; margin-top:0;">LOJA DA VILA</h2>
         <div class="shop-item">☕ Café Expresso<br><small>Restaura 100% Energia</small><br><button onclick="buyCoffee()" style="background: #6f4e37;">50 MC</button></div>
-        <div class="shop-item">🐶 Doguinho (Força)<br><small id="dog-lvl-display">Lvl: 0</small><br><button onclick="buyPet('dog')">100 MC</button></div>
+        <div class="shop-item" style="filter: invert(100%);">🐶 Doguinho (Força)<br><small id="dog-lvl-display">Lvl: 0</small><br><button onclick="buyPet('dog')">100 MC</button></div>
         <div class="shop-item">🐱 Gatinho (Sorte)<br><small id="cat-lvl-display">Lvl: 0</small><br><button onclick="buyPet('cat')">100 MC</button></div>
         <div class="shop-item">💰 Converter<br><button onclick="convertPoints()" style="background: gold; color: black;">200 Pts ➔ 50 MC</button></div>
         <button onclick="closeShop()" style="background:#c0392b; width: 100%; margin-top: 10px; border: 2px solid white;">FECHAR</button>
@@ -913,7 +913,27 @@ if (hook.caughtItem) {
                 ctx.fillRect(0,0, canvas.width, canvas.height);
 
                  lojas.forEach(loja => {
-    ctx.drawImage(sprites.loja, loja.x - 60, loja.y - 60, 120, 120);
+    if (loja.tipo === 'principal') {
+        ctx.save();
+        ctx.filter = 'invert(100%)';
+        ctx.drawImage(sprites.loja, loja.x - 60, loja.y - 60, 120, 120);
+        ctx.restore();
+    } else {
+        ctx.drawImage(sprites.loja, loja.x - 60, loja.y - 60, 120, 120);
+    }
+    let title = '';
+    if (loja.tipo === 'principal') title = 'Loja Principal';
+    else if (loja.tipo === 'pets') title = 'Loja de Pets';
+    else if (loja.tipo === 'upgrade') title = 'Loja de Upgrades';
+    if (title) {
+        ctx.fillStyle = 'rgba(128,128,128,0.8)';
+        ctx.fillRect(loja.x - 60, loja.y - 90, 120, 25);
+        ctx.fillStyle = 'white';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(title, loja.x, loja.y - 77.5);
+    }
 });
 
                 ctx.drawImage(sprites.miner, playerHubPos.x-40, playerHubPos.y-40, 80, 80);
