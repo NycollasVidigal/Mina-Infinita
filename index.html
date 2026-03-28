@@ -20,11 +20,26 @@
 
         #ui { position: absolute; top: 15px; left: 15px; color: gold; font-size: 18px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 4px #000; z-index: 10; }
 
-        #energy-container { width: 150px; height: 15px; background: #333; border: 2px solid #fff; margin-top: 5px; border-radius: 10px; overflow: hidden; }
+      #energy-container {
+    width: 150px;
+    height: 15px;
+    background: #333;
+    border: 2px solid #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.energy-layer {
+    height: 100%;
+    position: absolute;
+    top: 0;
+}
+
 
         #energy-bar { width: 100%; height: 100%; background: #ff7675; transition: width 0.3s; }
 
-        #pet-power-ui { position: absolute; top: 15px; right: 20px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 10px; color: #55efc4; font-weight: bold; border: 1px solid #55efc4; display: none; z-index: 20; }
+        #pet-power-ui { position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 10px; color: #55efc4; font-weight: bold; border: 1px solid #55efc4; display: none; z-index: 20; }
 
         #btn-hub { position: absolute; bottom: 20px; right: 20px; padding: 15px 35px; font-weight: bold; font-size: 16px; cursor: pointer; border: 2px solid #fff; border-radius: 50px; background: #e67e22; color: white; z-index: 100; }
 
@@ -39,6 +54,19 @@
         #overlay { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9000; color: white; text-align: center; }
 
         #level-start-ui { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 25px; border-radius: 15px; border: 2px solid gold; color: white; text-align: center; z-index: 1000; display: none; pointer-events: none; min-width: 280px; box-shadow: 0 0 30px rgba(255,215,0,0.5); }
+
+#energy-base {
+    height: 100%;
+    background: transparent;
+    transition: width 0.2s linear;
+}
+
+#energy-extra {
+    height: 100%;
+    background: #74b9ff;
+    position: absolute;
+    left: 0;
+}
 
         #energy-warning {
 
@@ -70,6 +98,22 @@
 
     }
 
+#audio-controls {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 999;
+    background: transparent;
+}
+
+#audio-controls button {
+    padding: 8px;
+    background: transparent;
+    font-size: 20px;
+}
+    
     </style>
 
 </head>
@@ -91,22 +135,28 @@
 
 
     <div id="ui">
+    PONTOS: <span id="score-text">0</span> | MC: <span id="coins-text">0</span><br>
+    NÍVEL: <span id="level-text">1</span>
 
-        PONTOS: <span id="score-text">0</span> | MC: <span id="coins-text">0</span><br>
+    <div id="energy-container">
+    <div id="energy-base"></div>
+</div>
 
-        NÍVEL: <span id="level-text">1</span>
-
-        <div id="energy-container"><div id="energy-bar"></div></div>
-
+    <div id="energy-cost"></div>
+    <div>
+        ⚡ Energia Lv: <span id="energy-level">0</span><br>
+        ⛏️ Picareta Lv: <span id="pickaxe-level">0</span>
     </div>
+</div>
 
+<div id="audio-controls">
+    <button onclick="toggleMusic()">🎵</button>
+    <button onclick="toggleSFX()">🔊</button>
+</div>
 
+<div id="pet-power-ui">⚡ BOOSTER: <span id="pet-timer-text">0s</span></div>
 
-    <div id="pet-power-ui">⚡ BOOSTER: <span id="pet-timer-text">0s</span></div>
-
-   
-
-    <div id="level-start-ui">
+<div id="level-start-ui">
 
         <h2 id="level-title" style="margin: 0 0 5px 0; color: gold;">NÍVEL 1</h2>
 
@@ -138,6 +188,13 @@
 
 
     <script>
+        function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+}
 
         const sounds = {
             bgm: new Audio('image/musica_fundo.mp3'),
@@ -150,6 +207,7 @@
 
 
          function playAudio(audioObj) {
+            if (sfxMuted) return;
             audioObj.currentTime = 0;
             audioObj.play().catch(e => console.log("Áudio aguardando interação"));
           
@@ -163,6 +221,15 @@
             audioObj.currentTime = 0;
 
         }
+const energyColors = [
+    "#ff7675", // vermelho
+    "#74b9ff", // azul
+    "#ffeaa7", // amarelo
+    "#55efc4", // verde
+    "#a29bfe", // roxo
+    "#fd79a8", // rosa
+    "#fab1a0"  // laranja claro
+];
 
             const sprites = {};
                     const assetNames = ['miner', 'ferro', 'ouro', 'diamante', 'rocha', 'pedra_negra', 'dog', 'cat', 'loja'];
@@ -177,22 +244,44 @@
         const ctx = canvas.getContext('2d');
         let shakeAmount = 0; 
         let mode = 'mine', score = 0, coins = 0, currentLevel = 1, energy = 100, gameActive = false, isShopOpen = false;
+        let lastShopTime = 0;
+        let isPaused = false;
         let petTimer = 0;
         let pets = { dog: { owned: false, lvl: 0 }, cat: { owned: false, lvl: 0 } };
-        
-        let minerPos = { x: 0, y: 75 };
+        let upgrades = { pickaxe: 0, energy: 0};
+        let zoomEffect = 0;
+        let lastThrowTime = 0;
+        let particles = [];
+        let canShoot = true;
+        let musicMuted = false;
+        let sfxMuted = false;
+        let minerPos = { x: 0, y: 110 };
         let playerHubPos = { x: 0, y: 0 }, targetHubPos = { x: 0, y: 0 };
-        let hook = { x: 0, y: 0, angle: 0, state: 'idle', caughtItem: null };
+        let hook = { x: 0, y: 0, angle: 0, state: 'idle', caughtItem: null, catchTimer: 0 };
         let items = [];
-       
+        let isRetracting = false;
+       const ENERGY_STEP = 10;
+
+function getMaxEnergy() {
+    return 100 + (upgrades.energy * ENERGY_STEP);
+}
+
+function limitarEnergia() {
+    const maxEnergy = getMaxEnergy();
+    if (energy > maxEnergy) energy = maxEnergy;
+    if (energy < 0) energy = 0;
+}
 
         canvas.width = window.innerWidth;
 
         canvas.height = window.innerHeight;
+        
+        minerPos.x = canvas.width / 2;
 
-        minerPos.x = canvas.width/2;
-
-        playerHubPos = { x: canvas.width/2, y: canvas.height - 150 };
+playerHubPos = {
+    x: canvas.width / 2,
+    y: canvas.height - 150
+};
 
         targetHubPos = { ...playerHubPos };
 
@@ -200,48 +289,140 @@
 
         function saveGame() {
 
-            const data = { score, coins, currentLevel, pets, energy };
+    const data = {
+        score: Number(score) || 0,
+        coins: Number(coins) || 0,
+        currentLevel: Number(currentLevel) || 1,
+        energy: Number(energy) || 100,
+        pets: pets,
+        upgrades: upgrades,
+        musicMuted,
+        sfxMuted
+    };
 
-            localStorage.setItem('mina_infinita_save', JSON.stringify(data));
-
-        }
-
+    localStorage.setItem('mina_infinita_save', JSON.stringify(data));
+}
 
 
-        function loadGame() {
 
-            const saved = localStorage.getItem('mina_infinita_save');
+ function loadGame() {
 
-            if (saved) {
+    const saved = localStorage.getItem('mina_infinita_save');
 
-                const data = JSON.parse(saved);
+    if (saved) {
+    
+        const data = JSON.parse(saved);
 
-                score = Number(data.score) || 0;
+        score = Number(data.score) || 0;
+        coins = Number(data.coins) || 0;
+        currentLevel = Number(data.currentLevel) || 1;
+        energy = Number(data.energy) || 100;
+        musicMuted = data.musicMuted || false;
+    sfxMuted = data.sfxMuted || false;
+    updateAudioButtons();
 
-                coins = Number(data.coins) || 0;
-
-                currentLevel = Number(data.currentLevel) || 1;
-
-                energy = Number(data.energy) || 100;
-
-                if(data.pets) pets = data.pets;
-
-                updateUI();
-
+        // 🔥 GARANTE ESTRUTURA DOS PETS
+        pets = {
+            dog: {
+                owned: data.pets?.dog?.owned || false,
+                lvl: data.pets?.dog?.lvl || 0
+            },
+            cat: {
+                owned: data.pets?.cat?.owned || false,
+                lvl: data.pets?.cat?.lvl || 0
             }
+        };
 
-        }
+        upgrades = {
+    pickaxe: data.upgrades?.pickaxe || 0,
+    energy: data.upgrades?.energy || 0
+    
+};
+musicMuted = data.musicMuted || false;
+    sfxMuted = data.sfxMuted || false;
+    sounds.bgm.volume = musicMuted ? 0 : 0.3;
+    updateAudioButtons();
+
+        updateUI();
+    }
+}       
 
 
 
         function startGame() {
-            loadGame();
-            document.getElementById('overlay').style.display = 'none';
-            gameActive = true;
-            playAudio(sounds.bgm);
-            nextLevel(true);
-            draw();
-        }
+
+    // 🔥 fecha o overlay PRIMEIRO
+    const overlay = document.getElementById('overlay');
+    if (overlay) overlay.style.display = 'none';
+
+    // depois carrega o jogo
+    loadGame();
+
+    gameActive = true;
+    playBGM();
+    nextLevel(true);
+    draw();
+}
+
+function toggleMusic() {
+    musicMuted = !musicMuted;
+
+    sounds.bgm.volume = musicMuted ? 0 : 0.3;
+
+    if (!musicMuted) {
+        playBGM();
+    } else {
+        stopAudio(sounds.bgm);
+    }
+
+    updateAudioButtons();
+    saveGame(); // salva persistência imediata
+}
+
+function toggleSFX() {
+    sfxMuted = !sfxMuted;
+    updateAudioButtons();
+    saveGame(); // salva persistência imediata
+}
+function playBGM() {
+    if (musicMuted) return;
+    sounds.bgm.currentTime = 0;
+    sounds.bgm.volume = 0.3;
+    sounds.bgm.play().catch(() => {});
+}
+
+function playSFX(audioObj) {
+    if (sfxMuted) return;
+    audioObj.currentTime = 0;
+    audioObj.play().catch(() => {});
+}
+
+function getEnergyCost() {
+    const base = 5;
+    const reduced = Math.max(1, base - upgrades.pickaxe);
+    return { base, reduced };
+}
+
+function updateAudioButtons() {
+    const buttons = document.querySelectorAll("#audio-controls button");
+
+    // botão música
+    buttons[0].innerText = musicMuted ? "🔇" : "🎵";
+
+    // botão efeitos
+    buttons[1].innerText = sfxMuted ? "🔕" : "🔊";
+}
+function showEnergyCost() {
+    const cost = getEnergyCost();
+    const el = document.getElementById('energy-cost');
+
+    el.innerText = `-${cost.base} → -${cost.reduced}`;
+    el.style.opacity = 1;
+
+    setTimeout(() => {
+        el.style.opacity = 0;
+    }, 1000);
+}
 
 
 
@@ -319,7 +500,9 @@
 
         }
 
-
+const marginTop = 260;     // onde começa o chão (abaixo do miner)
+const marginBottom = 100;  // espaço do botão VILA
+const marginSide = 30;     // laterais
 
         function createItems() {
 
@@ -335,13 +518,37 @@
 
                 let weight = 2, value = 50;
 
-                if (type === 'rocha') { weight = 5; value = 5; }
+weight += currentLevel * 0.2;
+value += currentLevel * 5;
 
-                else if (type === 'pedra_negra') { weight = 8; value = 150; }
+if (type === 'rocha') {
+    weight = 9;
+    value = 10;
+}
+else if (type === 'ferro') {
+    weight = 3;
+    value = 30;
+}
+else if (type === 'ouro') {
+    weight = 4;
+    value = 70;
+}
+else if (type === 'diamante') {
+    weight = 5;
+    value = 120;
+}
+else if (type === 'pedra_negra') {
+    weight = 7;
+    value = 180;
+}
 
-                else if (type === 'diamante') { weight = 1.5; value = 100; }
-
-                items.push({ x: Math.random() * (canvas.width - 60) + 30, y: 300 + Math.random() * (canvas.height - 400), spriteKey: type, weight, value });
+                items.push({
+    x: Math.random() * (canvas.width - marginSide * 2) + marginSide,
+y: marginTop + Math.random() * (canvas.height - marginTop - marginBottom),
+    spriteKey: type,
+    weight,
+    value
+});
 
             }
 
@@ -349,25 +556,48 @@
 
 
 
-        function updateUI() {
+function updateUI() {
+    limitarEnergia();
 
-            document.getElementById('score-text').innerText = Math.floor(score);
+    document.getElementById('score-text').innerText = Math.floor(score);
+    document.getElementById('coins-text').innerText = coins;
+    document.getElementById('level-text').innerText = currentLevel;
 
-            document.getElementById('coins-text').innerText = coins;
+    document.getElementById('energy-level').innerText = upgrades.energy;
+    document.getElementById('pickaxe-level').innerText = upgrades.pickaxe;
 
-            document.getElementById('level-text').innerText = currentLevel;
+    const dog = document.getElementById('dog-lvl-display');
+    const cat = document.getElementById('cat-lvl-display');
 
-            document.getElementById('energy-bar').style.width = energy + "%";
+    if (dog) dog.innerText = "Lvl: " + pets.dog.lvl;
+    if (cat) cat.innerText = "Lvl: " + pets.cat.lvl;
 
-            document.getElementById('pet-power-ui').style.display = (petTimer > 0) ? 'block' : 'none';
+    document.getElementById('pet-power-ui').style.display = (petTimer > 0) ? 'block' : 'none';
+    document.getElementById('pet-timer-text').innerText = petTimer + "s";
 
-            document.getElementById('pet-timer-text').innerText = petTimer + "s";
+   const bar = document.getElementById('energy-base');
 
-            document.getElementById('dog-lvl-display').innerText = "Lvl: " + pets.dog.lvl;
+if (bar) {
+    const energiaPorCamada = 100;
 
-            document.getElementById('cat-lvl-display').innerText = "Lvl: " + pets.cat.lvl;
+    let camada = Math.floor((energy - 1) / energiaPorCamada);
+    if (energy <= 0) camada = 0;
 
-        }
+    let energiaAtual = energy % energiaPorCamada;
+    if (energiaAtual === 0 && energy > 0) {
+        energiaAtual = 100;
+    }
+
+    bar.style.width = energiaAtual + "%";
+    bar.style.background = energyColors[camada % energyColors.length];
+
+    
+
+    saveGame();
+}
+
+
+}
 
 
 
@@ -385,137 +615,198 @@
 
         }, 1000);
 
+            let lojas = [];
+
+function atualizarLojas() {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    lojas = [
+        { x: centerX + 2, y: centerY - 250, tipo: 'principal' },
+        { x: centerX - 145, y: centerY - 160, tipo: 'pets' },
+        { x: centerX + 145, y: centerY - 160, tipo: 'upgrade' }
+    ];
+}
 
 
         function update() {
+    if (!gameActive) return;
+    limitarEnergia();
+    if (shakeAmount > 0) shakeAmount *= 0.85;
+    else shakeAmount = 0;
 
-            if (!gameActive) return;
+    if (mode === 'mine') {
+    if (isPaused) return;
 
-            if (shakeAmount > 0) shakeAmount *= 0.85; else shakeAmount = 0;
+    // 🛠️ anti bug: se ficar preso fora da tela
+if (hook.x < -50 || hook.x > canvas.width + 50 || hook.y > canvas.height + 50) {
+    hook.state = 'idle';
+    hook.caughtItem = null;
+    hook.catchTimer = 0;
+    isRetracting = false;
+    hook.x = minerPos.x;
+    hook.y = minerPos.y;
+}
 
+     if (hook.state === 'idle') {
+        hook.x = minerPos.x;
+        hook.y = minerPos.y;
+    }
 
+        if (hook.state === 'extending') {
 
-            if (mode === 'mine') {
+            hook.x += Math.cos(hook.angle) * 12;
+            hook.y += Math.sin(hook.angle) * 12;
 
-                if (hook.state === 'idle') { hook.x = minerPos.x; hook.y = minerPos.y; }
+            if (
+    hook.y > canvas.height - marginBottom ||
+    hook.x < marginSide ||
+    hook.x > canvas.width - marginSide
+) {
+    hook.state = 'retracting';
+    isRetracting = true;
+} else {
+                for (let i = items.length - 1; i >= 0; i--) {
+                    let it = items[i];
 
-               
+                    if (Math.hypot(hook.x - it.x, hook.y - it.y) < 30) {
+                        hook.caughtItem = items.splice(i, 1)[0];
+                        hook.state = 'catching';
+                        hook.catchTimer = 30;  // Delay de ~0.5 segundos (30 frames a 60fps)
+                        stopAudio(sounds.hook);
+                        playAudio(sounds.catch);
 
-                if (hook.state === 'extending') {
-
-                    hook.x += Math.sin(hook.angle) * 12; hook.y += Math.cos(hook.angle) * 12;
-
-                    if (hook.y > canvas.height || hook.x < 0 || hook.x > canvas.width) {
-
-                        hook.state = 'retracting';
-
-                    } else {
-
-                        for (let i = items.length - 1; i >= 0; i--) {
-
-                            let it = items[i];
-
-                            if (Math.hypot(hook.x - it.x, hook.y - it.y) < 30) {
-
-                                hook.caughtItem = items.splice(i, 1)[0];
-
-                                hook.state = 'retracting';
-
-                                stopAudio(sounds.hook);
-
-                                playAudio(sounds.catch);
-
-                                if (hook.caughtItem.weight >= 5) shakeAmount = hook.caughtItem.weight * 4;
-
-                                break;
-
-                            }
-
+                        if (hook.caughtItem.weight >= 5) {
+                            shakeAmount = hook.caughtItem.weight * 4;
                         }
-
+                        break;
                     }
-
-                } else if (hook.state === 'retracting') {
-
-                    let dogBoost = (pets.dog.owned && petTimer > 0) ? (1 + (pets.dog.lvl * 0.5)) : (petTimer > 0 ? 1.2 : 1);
-
-                    let s = 12 / (1 + (hook.caughtItem ? (hook.caughtItem.weight / dogBoost) : 0));
-
-                    let d = Math.hypot(minerPos.x - hook.x, minerPos.y - hook.y);
-
-                   
-
-                    if (d < 15) {
-
-                        if (hook.caughtItem) {
-
-                            let catBoost = (pets.cat.owned && petTimer > 0) ? 2.5 : (petTimer > 0 ? 1.5 : 1);
-
-                            score += hook.caughtItem.value * catBoost;
-
-                            hook.caughtItem = null;
-
-                            updateUI();
-
-                            stopAudio(sounds.catch);
-
-                            stopAudio(sounds.hook);
-
-                            if (items.length === 0) {
-
-                                playAudio(sounds.coin);
-
-                                nextLevel();
-
-                            }
-
-                        }
-
-                        hook.state = 'idle';
-
-                        hook.x = minerPos.x;
-
-                        hook.y = minerPos.y;
-
-                    } else {
-
-                        hook.x += ((minerPos.x - hook.x) / d) * s;
-
-                        hook.y += ((minerPos.y - hook.y) / d) * s;
-
-                    }
-
                 }
-
-            } else {
-
-                let dx = targetHubPos.x - playerHubPos.x, dy = targetHubPos.y - playerHubPos.y, dist = Math.hypot(dx, dy);
-
-                if (dist > 5) { playerHubPos.x += (dx / dist) * 5; playerHubPos.y += (dy / dist) * 5; }
-
-                if (!isShopOpen && Math.hypot(playerHubPos.x - canvas.width/2, playerHubPos.y - canvas.height/2) < 50) openShop();
-
             }
 
+        } else if (hook.state === 'catching') {
+            hook.catchTimer--;
+            if (hook.catchTimer <= 0) {
+                hook.state = 'retracting';
+                isRetracting = true;
+            }
+
+        } else if (hook.state === 'retracting') {
+
+            let dogBoost = (pets.dog.owned && petTimer > 0)
+                ? (1 + (pets.dog.lvl * 0.5))
+                : (petTimer > 0 ? 1.2 : 1);
+
+            let s = 12 / (1 + (hook.caughtItem ? (hook.caughtItem.weight / dogBoost) : 0));
+            let d = Math.hypot(minerPos.x - hook.x, minerPos.y - hook.y);
+
+            if (d < 15) {
+
+                if (hook.caughtItem) {
+                    let catBoost = (pets.cat.owned && petTimer > 0)
+                        ? 2.5
+                        : (petTimer > 0 ? 1.5 : 1);
+
+                    score += hook.caughtItem.value * catBoost;
+                    saveGame();
+                    hook.caughtItem = null;
+                    updateUI();
+
+
+                    stopAudio(sounds.catch);
+                    stopAudio(sounds.hook);
+
+                    if (items.length === 0) {
+                        playAudio(sounds.coin);
+                        nextLevel();
+                    }
+                }
+
+                hook.state = 'idle';
+                hook.x = minerPos.x;
+                hook.y = minerPos.y;
+                canShoot = true;
+                isRetracting = false;
+
+            } else {
+                hook.x += ((minerPos.x - hook.x) / d) * s;
+                hook.y += ((minerPos.y - hook.y) / d) * s;
+            }
         }
 
+   } else {
 
+    let dx = targetHubPos.x - playerHubPos.x;
+    let dy = targetHubPos.y - playerHubPos.y;
+    let dist = Math.hypot(dx, dy);
 
+    if (dist > 5) {
+        playerHubPos.x += (dx / dist) * 5;
+        playerHubPos.y += (dy / dist) * 5;
+    }
+
+    lojas.forEach(loja => {
+        const distLoja = Math.hypot(
+            playerHubPos.x - loja.x,
+            playerHubPos.y - loja.y
+        );
+     if (!isShopOpen && distLoja < 70 && Date.now() - lastShopTime > 2000){ 
+            openShop(loja.tipo);
+        }
+    });
+
+            const biome = getCurrentBiome();
+
+if (biome.name === "Dimensão Escarlate" || biome.name === "Dimensão Escarlate 2") {
+    // efeito tipo Nether (fumaça, brasas e brilho escarlate)
+    if (Math.random() < 0.45) {
+        const isEmber = Math.random() < 0.65;
+        particles.push({
+            x: Math.random() * canvas.width,
+            y: canvas.height + 10,
+            vx: (Math.random() - 0.5) * 1.5,
+            vy: - (Math.random() * 1.5 + (isEmber ? 0.7 : 0.5)),
+            size: isEmber ? Math.random() * 3 + 1.5 : Math.random() * 6 + 4,
+            alpha: isEmber ? (Math.random() * 0.6 + 0.4) : (Math.random() * 0.25 + 0.1),
+            color: isEmber ? `rgba(255, ${Math.floor(100 + Math.random() * 155)}, 0, ${isEmber ? 0.65 : 0.35})` : `rgba(120, 25, 15, ${Math.random() * 0.3 + 0.08})`,
+            life: isEmber ? 1 : 1.5
+        });
+    }
+
+    hook.x += Math.sin(Date.now() * 0.02) * 1.5;
+}
+
+particles.forEach(p => {
+    p.x += p.vx || 0;
+    p.y += p.vy || -(p.speed || 1);
+    p.alpha -= (p.life || 1) * 0.008;
+});
+
+particles = particles.filter(p => p.alpha > 0 && p.y > -20);
+
+}
+} // ← ESSA CHAVE É O QUE TAVA FALTANDO
             const biomes = [
+    { name: "Caverna de Terra", sky: "#2c3e50", ground: "#4e342e" },
+    { name: "Caverna Úmida", sky: "#34495e", ground: "#6d4c41" },
+    { name: "Mina de Ferro", sky: "#7f8c8d", ground: "#95a5a6" },
+    { name: "Mina de Ouro", sky: "#f1c40f", ground: "#d4ac0d" },
+    {name: "Dimensão Escarlate", sky: "#1a0f0f", ground: "#8b0000" },
+    { name: "Geleira Profunda", sky: "#c7ecee", ground: "#0984e3" },
+    { name: "Mina de Gelo", sky: "#dff9fb", ground: "#74b9ff" },
+    { name: "Floresta Subterrânea", sky: "#2d3436", ground: "#27ae60" },
+    { name: "Pântano Tóxico", sky: "#1e272e", ground: "#05c46b" },
+    { name: "Caverna de Cristal", sky: "#2f3542", ground: "#a29bfe" },
+    { name: "Ruínas Antigas", sky: "#636e72", ground: "#b2bec3" },
+    { name: "Deserto Subterrâneo", sky: "#eccc68", ground: "#e1b12c" },
+    { name: "Núcleo Vulcânico", sky: "#2d3436", ground: "#d63031" },
+    { name: "Abismo Sombrio", sky: "#000000", ground: "#2d3436" },
+    { name: "Caverna Radioativa", sky: "#0f2027", ground: "#00ff9f" },
+    { name: "Núcleo do Planeta", sky: "#1a1a1a", ground: "#ff3f34" },
+    {name: "Dimensão Escarlate 2", sky: "#1a0f0f", ground: "#8b0000" }
+];
 
-                { name: "Caverna de Terra", sky: "#2c3e50", ground: "#4e342e" },    // Nível 1-5
-
-                { name: "Mina de Gelo", sky: "#dff9fb", ground: "#74b9ff" },       // Nível 6-10
-
-                { name: "Núcleo Vulcânico", sky: "#2d3436", ground: "#d63031" },   // Nível 11-15
-
-                { name: "Pântano Tóxico", sky: "#1e272e", ground: "#05c46b" },     // Nível 16-20
-
-                { name: "Caverna de Cristal", sky: "#2f3542", ground: "#a29bfe" }  // Nível 21+
-
-            ];
-
-
+                
 
             function getCurrentBiome() {
 
@@ -532,6 +823,7 @@
             }
 
 
+resizeCanvas();
 
         function draw() {
 
@@ -541,61 +833,72 @@
 
             ctx.save();
 
+            if (zoomEffect > 0) {
+    const scale = 1 + zoomEffect * 0.05;
+
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+    zoomEffect *= 0.9;
+}
+
             if (shakeAmount > 0) ctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
 
-            ctx.clearRect(-100, -100, canvas.width + 200, canvas.height + 200);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 
 
             if (mode === 'mine') {
+// FUNDO PRIMEIRO
+ctx.fillStyle = biome.sky;
+ctx.fillRect(0, 0, canvas.width, 260);
 
-                // Desenha o Céu/Topo com a cor do Bioma
+ctx.fillStyle = biome.ground;
+ctx.fillRect(0, 160, canvas.width, canvas.height);
 
-                ctx.fillStyle = biome.sky;
+particles.forEach(p => {
+    ctx.fillStyle = p.color || `rgba(255, 80, 40, ${p.alpha})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    if (p.life && p.alpha > 0.2) {
+        ctx.fillStyle = p.color ? p.color.replace(/rgba\((.*),\s*([\d\.]+)\)/, (m, c, a) => `rgba(${c}, ${Math.max(0.05, Math.min(0.2, Number(a)*0.5))})`) : `rgba(255, 120, 40, ${Math.max(0.05, p.alpha*0.4)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 1.6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+});
 
-                ctx.fillRect(-100, -100, canvas.width + 200, 260);
+if (biome.name === "Dimensão Escarlate" || biome.name === "Dimensão Escarlate 2") {
+    ctx.fillStyle = "rgba(128, 16, 16, 0.15)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+// ITENS
+items.forEach(it => {
+    ctx.drawImage(sprites[it.spriteKey], it.x - 20, it.y - 20, 40, 40);
+});
 
+// CORDA
+ctx.strokeStyle = "white";
+ctx.lineWidth = 3;
+ctx.beginPath();
+ctx.moveTo(minerPos.x, minerPos.y);
+ctx.lineTo(hook.x, hook.y);
+ctx.stroke();
 
+// ITEM NO GANCHO
+if (hook.caughtItem) {
+    ctx.drawImage(sprites[hook.caughtItem.spriteKey], hook.x - 20, hook.y - 20, 40, 40);
+}
 
-                // Desenha o Chão com a cor do Bioma
-
-                ctx.fillStyle = biome.ground;
-
-                ctx.fillRect(-100, 160, canvas.width + 200, canvas.height + 200);
-
-
-
-                // Desenha os itens
-
-                items.forEach(it => ctx.drawImage(sprites[it.spriteKey], it.x - 20, it.y - 20, 40, 40));
-
-               
-
-                // Gancho e Corda
-
-                ctx.strokeStyle = "white";
-
-                ctx.lineWidth = 3;
-
-                ctx.beginPath();
-
-                ctx.moveTo(minerPos.x, minerPos.y);
-
-                ctx.lineTo(hook.x, hook.y);
-
-                ctx.stroke();
-
-
-
-                if (hook.caughtItem) ctx.drawImage(sprites[hook.caughtItem.spriteKey], hook.x - 20, hook.y - 20, 40, 40);
-
-
+// MINER POR ÚLTIMO (sempre por cima)
 
                 // Efeito de cansaço no minerador
 
                 if (energy <= 0) ctx.filter = "grayscale(100%) opacity(0.7)";
 
-                ctx.drawImage(sprites.miner, minerPos.x-40, 15, 80, 80);
+                ctx.drawImage(sprites.miner, minerPos.x - 40, minerPos.y - 40, 80, 80);
 
                 ctx.filter = "none";
 
@@ -605,11 +908,13 @@
 
                 // Modo Vila (Cor fixa ou você pode mudar também!)
 
-                ctx.fillStyle = "#2ecc71";
+                ctx.fillStyle = "#2ecc71"; // ou qualquer cor que quiser
 
                 ctx.fillRect(0,0, canvas.width, canvas.height);
 
-                ctx.drawImage(sprites.loja, canvas.width/2 - 60, canvas.height/2 - 60, 120, 120);
+                 lojas.forEach(loja => {
+    ctx.drawImage(sprites.loja, loja.x - 60, loja.y - 60, 120, 120);
+});
 
                 ctx.drawImage(sprites.miner, playerHubPos.x-40, playerHubPos.y-40, 80, 80);
 
@@ -629,105 +934,282 @@
 
 
 
-        function toggleHub() { mode = (mode === 'mine') ? 'hub' : 'mine'; document.getElementById('btn-hub').innerText = (mode === 'mine') ? 'VILA' : 'MINA'; saveGame(); }
+        function toggleHub() {
 
-        function openShop() { isShopOpen = true; document.getElementById('shop-ui').classList.add('active'); }
+    if (mode === 'mine') {
+        // indo pra vila
+        mode = 'hub';
+        isPaused = true;
+        saveGame();
 
-        function closeShop() { isShopOpen = false; document.getElementById('shop-ui').classList.remove('active'); targetHubPos.y += 60; }
+    } else {
+        // voltando pra mina
+        mode = 'mine';
+        isPaused = false;
+
+        // 🔥 RESET LIMPO DO GANCHO
+        hook = {
+            x: minerPos.x,
+            y: minerPos.y,
+            angle: 0,
+            state: 'idle',
+            caughtItem: null,
+            catchTimer: 0
+        };
+        isRetracting = false;
+
+        // 🔥 GARANTE UI ATUALIZADA
+        updateUI();
+    }
+
+    document.getElementById('btn-hub').innerText =
+        (mode === 'mine') ? 'VILA' : 'MINA';
+}
+
+       function openShop(tipo) {
+    isShopOpen = true;
+    const shop = document.getElementById('shop-ui');
+    shop.classList.add('active');
+
+
+    if (tipo === 'principal') {
+        shop.innerHTML = `
+            <h2 style="color:#2ecc71;">LOJA PRINCIPAL</h2>
+
+            <div class="shop-item">
+                ☕ Café Expresso<br>
+                <small>Restaura 100% Energia</small><br>
+                <button onclick="buyCoffee()" style="background:#6f4e37;">50 MC</button>
+            </div>
+
+            <div class="shop-item">
+                💰 Converter<br>
+                <button onclick="convertPoints()" style="background:gold; color:black;">
+                    200 Pts ➔ 50 MC
+                </button>
+            </div>
+
+            <button onclick="closeShop()" style="background:#c0392b; width:100%; margin-top:10px;">
+                FECHAR
+            </button>
+        `;
+    }
+
+    else if (tipo === 'pets') {
+
+    const dogPrice = 100 + Math.floor(pets.dog.lvl * 20);
+    const catPrice = 100 + Math.floor(pets.cat.lvl * 20);
+
+    shop.innerHTML = `
+        <h2 style="color:#55efc4;">🐾 LOJA DE PETS</h2>
+
+        <div class="shop-item">
+            🐶 Doguinho (Força)<br>
+            <small>Nível: ${pets.dog.lvl}</small><br>
+            <small>Velocidade +${(pets.dog.lvl * 8)}%</small><br>
+            <button onclick="buyPet('dog')">
+                ${pets.dog.owned ? `UPGRADE (${dogPrice} MC)` : `COMPRAR (${dogPrice} MC)`}
+            </button>
+        </div>
+
+        <div class="shop-item">
+            🐱 Gatinho (Sorte)<br>
+            <small>Nível: ${pets.cat.lvl}</small><br>
+            <small>Multiplicador x${(1 + pets.cat.lvl * 0.15).toFixed(2)}</small><br>
+            <button onclick="buyPet('cat')">
+                ${pets.cat.owned ? `UPGRADE (${catPrice} MC)` : `COMPRAR (${catPrice} MC)`}
+            </button>
+        </div>
+
+        <button onclick="closeShop()" style="background:#c0392b; width:100%; margin-top:10px;">
+            FECHAR
+        </button>
+    `;
+}
+   else if (tipo === 'upgrade') {
+
+    shop.innerHTML = `
+        <h2 style="color:#74b9ff;">⚙️ LOJA DE UPGRADES</h2>
+
+        <div class="shop-item">
+            ⛏️ Melhoria de Picareta<br>
+            <small>Nível: ${upgrades.pickaxe}</small>
+            <small>Menos gasto de energia</small><br>
+            <button onclick="buyUpgrade('pickaxe')">
+                150 MC
+            </button>
+        </div>
+
+        <div class="shop-item">
+            ⚡ Melhoria de Energia<br>
+            <small>Nível: ${upgrades.pickaxe}</small>
+            <small>Aumenta limite de energia</small><br>
+            <button onclick="buyUpgrade('energy')">
+                200 MC
+            </button>
+        </div>
+
+        <button onclick="closeShop()" style="background:#c0392b; width:100%; margin-top:10px;">
+            FECHAR
+        </button>
+    `;
+}
+
+    shop.classList.add('active');
+}
+
+      function closeShop() {
+    isShopOpen = false;
+    document.getElementById('shop-ui').classList.remove('active');
+}
 
        
 
-        function buyPet(type) { if (coins >= 100) { coins -= 100; pets[type].owned = true; pets[type].lvl++; playAudio(sounds.coin); updateUI(); saveGame(); } }
+        function buyPet(type) {
+
+    let price = 100 + Math.floor(pets[type].lvl * 20);
+
+    if (coins >= price) {
+        coins -= price;
+
+        pets[type].owned = true;
+        pets[type].lvl++;
+
+        playAudio(sounds.coin);
+        updateUI();
+        saveGame();
+
+        openShop('pets'); // atualiza a loja
+    }
+}
 
         function convertPoints() { if (score >= 200) { score -= 200; coins += 50; playAudio(sounds.coin); updateUI(); saveGame(); } }
 
-       
+   window.closeShop = function() {
+    isShopOpen = false;
+
+    const shop = document.getElementById('shop-ui');
+    shop.classList.remove('active');
+
+    lastShopTime = Date.now();
+// debug
+}    
 
         // Função do Café
 
-        function buyCoffee() {
+       function buyCoffee() {
+    if (coins < 50) return;
 
-            if (coins >= 50) {
+    coins -= 50;
+    energy = getMaxEnergy();
 
-                if (energy >= 100) return;
+    playAudio(sounds.coin);
+    updateUI();
+    saveGame();
+}
 
-                coins -= 50;
 
-                energy = 100;
 
-                playAudio(sounds.coin);
+function buyUpgrade(type) {
+    if (type === 'pickaxe' && coins >= 150) {
+        coins -= 150;
+        upgrades.pickaxe++;
+        zoomEffect = 1;
+    }
 
-                updateUI();
+    if (type === 'energy' && coins >= 200) {
+        if (upgrades.energy >= 100) return;
 
-                saveGame();
+        coins -= 200;
+        upgrades.energy++;
+        limitarEnergia();
+        zoomEffect = 0.5;
+    }
 
-            }
+    updateUI();
+    saveGame();
+}
 
+       canvas.addEventListener('mousedown', (e) => {
+if (!canShoot) return;
+if (isRetracting) return;
+    if (isShopOpen) return; // só bloqueia loja
+const now = Date.now();
+
+if (now - lastThrowTime < 300) return; // 300ms de delay
+
+lastThrowTime = now;
+    // 🏠 VILA
+    if (mode === 'hub') {
+        const rect = canvas.getBoundingClientRect();
+
+        targetHubPos.x = e.clientX - rect.left;
+        targetHubPos.y = e.clientY - rect.top;
+        return;
+    }
+
+    // ⛏️ MINA
+    if (mode === 'mine') {
+
+        if (hook.state !== 'idle') {
+    // 🔥 força reset se bugar
+    hook.state = 'idle';
+    hook.caughtItem = null;
+    hook.x = minerPos.x;
+    hook.y = minerPos.y;
+}
+        if (energy <= 0) {
+            const warning = document.getElementById('energy-warning');
+            warning.style.display = 'block';
+
+            setTimeout(() => {
+                warning.style.display = 'none';
+            }, 2000);
+
+            return;
         }
 
+        energy -= 5;
+        updateUI();
 
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-        canvas.addEventListener('mousedown', (e) => {
+        hook.angle = Math.atan2(
+    mouseY - minerPos.y,
+    mouseX - minerPos.x
+);
 
-            if (isShopOpen) return;
+        hook.state = 'extending';
+        playAudio(sounds.hook);
+    }
+});
 
-           
+        resizeCanvas();
+        atualizarLojas();
 
-            if (mode === 'mine' && hook.state === 'idle') {
+    draw();
+       window.addEventListener('resize', () => {
+    resizeCanvas();
+    atualizarLojas();
 
-                // --- VERIFICAÇÃO DE ENERGIA COM AVISO ---
+    minerPos.x = canvas.width / 2;
 
-                if (energy <= 0) {
+    playerHubPos.x = canvas.width / 2;
+    playerHubPos.y = canvas.height - 150;
 
-                    const warning = document.getElementById('energy-warning');
+    targetHubPos = { ...playerHubPos };
+    draw();
+});
+    setInterval(saveGame, 5000);
 
-                    warning.style.display = 'block'; // Mostra a mensagem
+    </script>
 
-                   
+</body>
 
-                    // Toca um som de erro ou faz o shake se quiser
-
-                    shakeAmount = 5;
-
-
-
-                    setTimeout(() => {
-
-                        warning.style.display = 'none'; // Esconde depois de 2 segundos
-
-                    }, 2000);
-
-                    return;
-
-                }
-
-
-
-                energy -= 5; // Gasta energia
-
-                if (energy < 0) energy = 0;
-
-                updateUI();
-
-
-
-                hook.angle = Math.atan2(e.clientX - minerPos.x, e.clientY - minerPos.y);
-
-                hook.state = 'extending';
-
-                playAudio(sounds.hook);
-
-            } else if (mode === 'hub') {
-
-                targetHubPos.x = e.clientX;
-
-                targetHubPos.y = e.clientY;
-
-            }
-
-        });
-
-        draw();
+</html>
+    
 
     </script>
 
